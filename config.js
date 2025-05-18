@@ -14,12 +14,12 @@ import { es } from "./lib/total-idiomas.js";
 global.botnumber = "";
 global.confirmCode = "";
 global.owner = [
-  ['5493865536185''5491166887146', '>\`\` KenisawaDev','sebas-MD', true],
+  ['5491166887146', '>\`\` sebas-MD', true],
   ['5493865208530', '>\` Akame Ai', true]
 ];
 global.colabs = [''];
 global.mods = [''];
-global.prems = ['5493865536185''5491166887146'];
+global.prems = ['5491166887146'];
 
 global.APIs = {
   nrtm: 'https://fg-nrtm.ddns.net',
