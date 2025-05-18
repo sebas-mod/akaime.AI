@@ -6,26 +6,24 @@ const handler = async (m, { isOwner, isAdmin, conn, text, participants, args, co
     throw false;
   }
 
-  const mensaje = args.join(' ') || '¡Hola a todos! 🌟';
+  const mensaje = args.join(' ');
   const total = participants.length;
-
-  // Emojis que se irán rotando
-  const emojis = ['🎯', '🔥', '🌟', '🚀', '⚡', '💎', '🎉', '🧠', '🐱', '🐉', '🦾', '🎮', '👾', '🌈'];
+  const emojis = ['🔹', '🔸'];
 
   let teks = `
-╭━━━〔 *👥 INVOCACIÓN DE GRUPO* 〕━━━╮
-┃📢 *Mensaje:* ${mensaje}
-┃👤 *Total de miembros:* ${total}
+╭━━━〔 *🤖 akame-AI* 〕━━━╮
+┃📢 *Mensaje:* ${mensaje || ''}
+┃👥 *Total de miembros:* ${total}
 ┃🔔 *Etiquetando a:*
 `;
 
   participants.forEach((mem, i) => {
-    const emoji = emojis[i % emojis.length]; // Rota los emojis
+    const emoji = emojis[i % emojis.length];
     teks += `┃${emoji} @${mem.id.split('@')[0]}\n`;
   });
 
   teks += '╰━━━━━━━━━━━━━━━━━━━━━━━╯\n';
-  teks += '🤖 *Bot: Akame Ai*';
+  teks += '🤖 *Bot: akame-AI*';
 
   await conn.sendMessage(m.chat, {
     text: teks,
