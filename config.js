@@ -15,7 +15,6 @@ global.botnumber = "";
 global.confirmCode = "";
 global.owner = [
   ['5491166887146', '>\`\` sebas-MD', true],
-  ['5491140951814', '>\` Akame Ai', true]
 ];
 global.colabs = [''];
 global.mods = [''];
