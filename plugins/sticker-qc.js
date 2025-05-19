@@ -1,99 +1,98 @@
+import WSF from 'wa-sticker-formatter';
 import axios from 'axios';
-import sharp from 'sharp';
 
-async function sticker(buffer, packname = '', author = '') {
-  // Convierte imagen PNG a WebP para sticker de WhatsApp
-  const webpBuffer = await sharp(buffer)
-    .resize(512, 512, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-    .webp()
-    .toBuffer();
-
-  return webpBuffer;
-}
-
-const handler = async (m, { conn, args }) => {
-  try {
+const handler = async (m, { conn, args, usedPrefix, command }) => {
+    let who = m.quoted ? m.quoted.sender : m.mentionedJid && m.mentionedJid[0] ? m.mentionedJid[0] : m.fromMe ? conn.user.jid : m.sender;
     let text;
-
-    if (args.length) {
-      text = args.join(' ');
-    } else if (m.quoted && m.quoted.text) {
-      text = m.quoted.text;
+    
+    if (m.quoted?.text) {
+        text = m.quoted.text;
     } else {
-      return await conn.sendMessage(m.chat, { text: '🚩 Te Faltó El Texto!' }, { quoted: m });
+        text = args.slice(1).join(' ');
     }
 
-    if (!text) {
-      return await conn.sendMessage(m.chat, { text: '🚩 Te Faltó El Texto!' }, { quoted: m });
-    }
-
-    const who = (m.mentionedJid && m.mentionedJid[0])
-      ? m.mentionedJid[0]
-      : m.fromMe
-        ? conn.user.id
-        : m.sender;
-
+    let pp = await conn.profilePictureUrl(who, 'image').catch(() => 'https://telegra.ph/file/320b066dc81928b782c7b.png');
     const mentionRegex = new RegExp(`@${who.split('@')[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'g');
-    const mishi = text.replace(mentionRegex, '');
+    const cleanText = text.replace(mentionRegex, '');
+    let name = global.db.data.users[who]?.name || 'Usuario';
 
-    if (mishi.length > 30) {
-      return await conn.sendMessage(m.chat, { text: '🚩 El texto no puede tener más de 30 caracteres' }, { quoted: m });
-    }
-
-    // Obtener foto de perfil o usar imagen por defecto
-    let pp = null;
-    try {
-      pp = await conn.profilePictureUrl(who, 'image').catch(() => null);
-    } catch {
-      pp = null;
-    }
-    if (!pp) pp = 'https://telegra.ph/file/24fa902ead26340f3df2c.png';
-
-    // Obtener nombre del usuario
-    const nombre = await conn.getName(who);
-
-    const obj = {
-      type: "quote",
-      format: "png",
-      backgroundColor: "#000000",
-      width: 512,
-      height: 768,
-      scale: 2,
-      messages: [{
-        entities: [],
-        avatar: true,
-        from: {
-          id: 1,
-          name: nombre,
-          photo: { url: pp }
-        },
-        text: mishi,
-        replyMessage: {}
-      }]
+    const validColors = {
+        pink: '#FFC0CB', red: '#FF0000', blue: '#0000FF', green: '#008000', yellow: '#FFFF00',
+        black: '#000000', white: '#FFFFFF', orange: '#FFA500', purple: '#800080', brown: '#A52A2A',
+        cyan: '#00FFFF', magenta: '#FF00FF', lime: '#00FF00', indigo: '#4B0082', violet: '#8A2BE2',
+        gold: '#FFD700', silver: '#C0C0C0', beige: '#F5F5DC', teal: '#008080', navy: '#000080',
+        maroon: '#800000', coral: '#FF7F50', turquoise: '#40E0D0', peach: '#FFDAB9', salmon: '#FA8072',
+        mint: '#98FF98', lavender: '#E6E6FA', chartreuse: '#7FFF00', khaki: '#F0E68C', plum: '#DDA0DD',
+        olive: '#808000', orchid: '#DA70D6', sienna: '#A0522D', tomato: '#FF6347', tan: '#D2B48C',
+        snow: '#FFFAFA', azure: '#007FFF', slategray: '#708090', royalblue: '#4169E1', fuchsia: '#FF00FF',
+        lavenderblush: '#FFF0F5'
     };
 
-    const response = await axios.post('https://bot.lyo.su/quote/generate', obj, {
-      headers: { 'Content-Type': 'application/json' }
-    });
-
-    const buffer = Buffer.from(response.data.result.image, 'base64');
-
-    const stikerBuffer = await sticker(buffer);
-
-    if (!stikerBuffer) {
-      return await conn.sendMessage(m.chat, { text: '❌ No se pudo generar el sticker.' }, { quoted: m });
+    let color = 'black';
+    let words = cleanText.split(" ");
+    if (validColors[args[0]]) {
+        color = args[0].toLowerCase();
     }
 
-    await conn.sendMessage(m.chat, { sticker: stikerBuffer }, { quoted: m });
+    if (!cleanText) {
+        return m.reply(`📌 Ejemplo: .${command} pink Hola Mundo\n\n꒰ 🖌️ Colores disponibles ꒱ ೄྀ࿐ ˊˎ-\n━━━━━━⊱⋆⊰━━━━━━\n` +
+            Object.keys(validColors).map((c, i) => `${i + 1}. ${c}`).join("\n"));
+    }
 
-  } catch (error) {
-    console.error(error);
-    await conn.sendMessage(m.chat, { text: '❌ Ocurrió un error al generar el sticker.' }, { quoted: m });
-  }
+    const obj = {
+        type: "quote",
+        format: "png",
+        backgroundColor: validColors[color],
+        width: 512,
+        height: 768,
+        scale: 2,
+        messages: [{
+            entities: [],
+            avatar: true,
+            from: {
+                id: 1,
+                name: name,
+                photo: { url: pp }
+            },
+            text: cleanText,
+            replyMessage: {}
+        }]
+    };
+
+    try {
+        const json = await axios.post('https://qc.botcahx.eu.org/generate', obj, {
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (!json.data.result?.image) {
+            throw new Error("Error en la API.");
+        }
+
+        const buffer = Buffer.from(json.data.result.image, 'base64');
+        let stiker = await sticker5(buffer, false, global.packname, global.author);
+        if (stiker) {
+            return conn.sendMessage(m.chat, { sticker: stiker }, { quoted: m });
+        } else {
+            return m.reply("❌ No se pudo crear el sticker.");
+        }
+    } catch (error) {
+        console.error(error);
+        return m.reply("🚨 Error al generar el sticker.");
+    }
 };
 
-handler.help = ['qc *<texto>*'];
+handler.help = ['qc'];
 handler.tags = ['sticker'];
-handler.command = ['qc'];
+handler.command = /^(qc)$/i;
 
 export default handler;
+
+async function sticker5(img, url, packname, author, categories = ['']) {
+    try {
+        const metadata = { type: 'full', pack: packname, author, categories };
+        return await new WSF.Sticker(img || url, metadata).build();
+    } catch (error) {
+        console.error("Error al crear sticker:", error);
+        return null;
+    }
+}
