@@ -1,8 +1,11 @@
+// [ 🍧 4VS4 FREE FIRE ]
 const partidas = {};
 
 const handler = async (m, { conn, args, command }) => {
+  const who = m.sender;
+  const name = global.db.data.users[who]?.name || "Jugador";
 
-  const sendPartidaMessage = (chatId, partida, quotedMsg) => {
+  const sendPartidaMessage = (chatId, partidaId, partida, quotedMsg) => {
     const mensaje = generarMensaje(partida);
     conn.sendMessage(
       chatId,
@@ -11,12 +14,8 @@ const handler = async (m, { conn, args, command }) => {
         footer: "¡Anótate para el 4vs4!",
         buttons: [
           {
-            buttonId: `.anotar`,
-            buttonText: { displayText: "📌 Anotar" },
-          },
-          {
-            buttonId: `.desanotar`,
-            buttonText: { displayText: "❌ Desanotar" },
+            buttonId: `.anotar ${partidaId}`,
+            buttonText: { displayText: "📌 Anotar/Desanotar" },
           },
         ],
         viewOnce: true,
@@ -26,179 +25,154 @@ const handler = async (m, { conn, args, command }) => {
     );
   };
 
-  // Comando anotar
+  // COMANDO: .anotar <id>
   if (command === "anotar") {
-    const who = m.sender;
-    const { name } = global.db.data.users[who];
-    const partidaId = `${m.chat}-${name}`; // Generamos una ID única con el nombre y chat
+    const partidaId = args[0];
+    const partida = partidas[partidaId];
 
-    if (!partidas[partidaId]) {
-      partidas[partidaId] = {
-        jugadores: [],
-        suplentes: [],
-        hora: args[1],
-        modalidad: args[3]?.toLowerCase() || "vivido", // Modalidad por defecto
-      };
-    }
-
-    if (partidas[partidaId].jugadores.includes(name) || partidas[partidaId].suplentes.includes(name)) {
-      conn.reply(m.chat, "¡Ya estás anotado en esta partida!", m);
-      sendPartidaMessage(m.chat, partidas[partidaId], m);
+    if (!partida) {
+      conn.reply(m.chat, "No hay una partida activa con ese ID.", m);
       return;
     }
 
-    if (partidas[partidaId].jugadores.length < 4) {
-      partidas[partidaId].jugadores.push(name);
-    } else if (partidas[partidaId].suplentes.length < 2) {
-      partidas[partidaId].suplentes.push(name);
-    } else {
-      conn.reply(m.chat, "¡La escuadra y suplentes ya están llenos! Lista cerrada.", m);
-      conn.sendMessage(m.chat, "Lista llena, suerte en el VS!", m);
-      return;
-    }
-
-    sendPartidaMessage(m.chat, partidas[partidaId], m);
-    return;
-  }
-
-  // Comando desanotar
-  if (command === "desanotar") {
-    const who = m.sender;
-    const { name } = global.db.data.users[who];
-    const partidaId = `${m.chat}-${name}`; // Generamos una ID única con el nombre y chat
-
-    if (!partidas[partidaId]) {
-      conn.reply(m.chat, "No hay una partida activa en este momento.", m);
-      return;
-    }
-
-    const idxJug = partidas[partidaId].jugadores.indexOf(name);
-    const idxSup = partidas[partidaId].suplentes.indexOf(name);
-
-    if (idxJug === -1 && idxSup === -1) {
-      conn.reply(m.chat, "¡No estás anotado en esta partida!", m);
-      sendPartidaMessage(m.chat, partidas[partidaId], m);
-      return;
-    }
-
+    const idxJug = partida.jugadores.indexOf(name);
+    const idxSup = partida.suplentes.indexOf(name);
     if (idxJug !== -1) {
-      partidas[partidaId].jugadores.splice(idxJug, 1);
-    } else if (idxSup !== -1) {
-      partidas[partidaId].suplentes.splice(idxSup, 1);
+      partida.jugadores.splice(idxJug, 1);
+      conn.reply(m.chat, "Te has desanotado de la escuadra.", m);
+      sendPartidaMessage(m.chat, partidaId, partida, m);
+      return;
+    }
+    if (idxSup !== -1) {
+      partida.suplentes.splice(idxSup, 1);
+      conn.reply(m.chat, "Te has desanotado de los suplentes.", m);
+      sendPartidaMessage(m.chat, partidaId, partida, m);
+      return;
     }
 
-    conn.reply(m.chat, "Te has desanotado de la partida.", m);
-    sendPartidaMessage(m.chat, partidas[partidaId], m);
+    if (partida.jugadores.length < 4) {
+      partida.jugadores.push(name);
+    } else if (partida.suplentes.length < 2) {
+      partida.suplentes.push(name);
+    } else {
+      conn.reply(m.chat, "¡La escuadra y suplentes ya están llenos!", m);
+      return;
+    }
+
+    if (partida.jugadores.length === 4 && partida.suplentes.length === 2) {
+      conn.reply(m.chat, "¡Lista completa, suerte!", m);
+    }
+
+    sendPartidaMessage(m.chat, partidaId, partida, m);
     return;
   }
 
-  // Crear partida
+  // COMANDO: .eliminarpartida <id>
+  if (command === "eliminarpartida") {
+    const partidaId = args[0];
+    if (!partidas[partidaId]) {
+      conn.reply(m.chat, "Esa partida no existe.", m);
+      return;
+    }
+    delete partidas[partidaId];
+    conn.reply(m.chat, `Partida ${partidaId} eliminada correctamente.`, m);
+    return;
+  }
+
+  // COMANDO: .listapartidas
+  if (command === "listapartidas") {
+    const lista = Object.keys(partidas);
+    if (lista.length === 0) {
+      conn.reply(m.chat, "No hay partidas activas.", m);
+    } else {
+      const texto = lista.map((id, i) => `${i + 1}. ${id}`).join("\n");
+      conn.reply(m.chat, `📋 Partidas activas:\n${texto}`, m);
+    }
+    return;
+  }
+
+  // CREAR PARTIDA: .4vs4 <región> <hora> <bandera> <modalidad>
   if (args.length < 4) {
     conn.reply(
       m.chat,
-      `Debes proporcionar esto.
-*.4vs4 <región> <hora> <Bandera> <modalidad>*
-
-*Regiones*
-SR (Sudamérica)
-EU (Estados Unidos)
-
-*Modalidades*
-- vivido
-- scrim
-- apos
-
-*Ejemplo:*
-.4vs4 SR 22:00 🇦🇷 vivido
-.4vs4 SR 22:00 🇦🇷 scrim
-.4vs4 SR 22:00 🇦🇷 apos
-.4vs4 EU 20:00 🇲🇽 vivido`,
+      `Debes proporcionar los siguientes datos:\n\n*.4vs4 <región> <hora> <bandera> <modalidad>*\n\n*Regiones:* SR, EU\n*Modalidades:* scrim, apos, vv2\n\n*Ejemplos:*\n.4vs4 SR 22:00 🇦🇷 scrim\n.4vs4 SR 21:30 🇵🇪 apos\n.4vs4 EU 20:00 🇲🇽 vv2`,
       m
     );
     return;
   }
 
-  const modalidad = args[3].toLowerCase();
-  if (!["vivido", "scrim", "apos"].includes(modalidad)) {
-    conn.reply(m.chat, 'Modalidad no válida. Escribe "vivido", "scrim" o "apos".', m);
+  const regionInput = args[0].toUpperCase();
+  const hora = args[1];
+  const bandera = args[2];
+  const modalidadInput = args[3].toLowerCase();
+
+  if (!["SR", "EU"].includes(regionInput)) {
+    conn.reply(m.chat, "Región no válida. Usa SR o EU.", m);
     return;
   }
 
-  const region = args[0].toUpperCase();
-  if (region !== "SR" && region !== "EU") {
-    conn.reply(m.chat, 'La región no es válida. Usa SR o EU.', m);
+  if (!["scrim", "apos", "vv2"].includes(modalidadInput)) {
+    conn.reply(m.chat, 'Modalidad no válida. Usa "scrim", "apos" o "vv2".', m);
     return;
   }
 
-  const partidaId = `${m.chat}-${region}-${args[1]}`; // Se crea una ID única con chat, región y hora
+  const reglasTexto = `reglas - ${modalidadInput}`;
+  const partidaId = `${m.chat}-${regionInput}-${hora}`;
+
+  if (partidas[partidaId]) {
+    conn.reply(m.chat, `Ya existe una partida con ese horario y región. Usa otro horario.`, m);
+    return;
+  }
 
   const horariosSR = { BO: "21:00", PE: "20:00", AR: "22:00" };
-  let horariosEU = { CO: "21:00", MX: args[1] };
-  const horarios = region === "SR" ? horariosSR : horariosEU;
+  const horariosEU = { CO: "21:00", MX: hora };
+  const horarios = regionInput === "SR" ? horariosSR : horariosEU;
 
-  if (!partidas[partidaId]) {
-    partidas[partidaId] = {
-      jugadores: [],
-      suplentes: [],
-      hora: args[1],
-      modalidad: modalidad.toUpperCase(),
-      reglas: obtenerReglas(modalidad),
-      horarios: horarios,
-    };
-  } else {
-    partidas[partidaId].modalidad = modalidad.toUpperCase();
-    partidas[partidaId].reglas = obtenerReglas(modalidad);
-  }
+  partidas[partidaId] = {
+    jugadores: [],
+    suplentes: [],
+    hora,
+    modalidad: modalidadInput,
+    reglas: reglasTexto,
+    horarios,
+    bandera,
+    creador: name,
+    creado: Date.now(),
+  };
 
-  sendPartidaMessage(m.chat, partidas[partidaId], m);
+  sendPartidaMessage(m.chat, partidaId, partidas[partidaId], m);
 };
 
-// Función para obtener las reglas según la modalidad
-function obtenerReglas(modalidad) {
-  switch (modalidad) {
-    case "vivido":
-      return ".reglasvivido"; // Aquí pondrías las reglas específicas para "vivido"
-    case "scrim":
-      return ".reglasscrim";  // Aquí pondrías las reglas específicas para "scrim"
-    case "apos":
-      return ".reglasapos";   // Aquí pondrías las reglas específicas para "apos"
-    default:
-      return ".reglasgenerales"; // Reglas por defecto
-  }
-}
-
-// 🧠 Generador de mensaje de partida
 function generarMensaje(partida) {
   const horarios = Object.entries(partida.horarios)
     .map(([pais, hora]) => {
-      const bandera = { BO: "🇧🇴", PE: "🇵🇪", AR: "🇦🇷", CO: "🇨🇴", MX: "🇲🇽" }[pais];
-      return `*${bandera} ${pais} :* ${hora}`;
+      const banderas = { BO: "🇧🇴", PE: "🇵🇪", AR: "🇦🇷", CO: "🇨🇴", MX: "🇲🇽" };
+      return `*${banderas[pais] || ""} ${pais} :* ${hora}`;
     })
     .join("\n");
 
-  const escuadra = [
-    `🥷 ${partida.jugadores[0] || ""}`,
-    `🥷 ${partida.jugadores[1] || ""}`,
-    `🥷 ${partida.jugadores[2] || ""}`,
-    `🥷 ${partida.jugadores[3] || ""}`,
-  ].join("\n");
+  const escuadra = Array(4)
+    .fill(null)
+    .map((_, i) => `🥷 ${partida.jugadores[i] || "—"}`)
+    .join("\n");
 
-  const suplentes = [
-    `🥷 ${partida.suplentes[0] || ""}`,
-    `🥷 ${partida.suplentes[1] || ""}`,
-  ].join("\n");
+  const suplentes = Array(2)
+    .fill(null)
+    .map((_, i) => `🥷 ${partida.suplentes[i] || "—"}`)
+    .join("\n");
 
   return (
-    `*4 VERSUS 4 ${partida.modalidad}*\n` +
+    `*4 VS 4 ${partida.modalidad}*\n` +
+    `📌 *Toca el botón para anotarte o desanotarte si ya estás inscrito.*\n\n` +
     `${horarios}\n` +
     `*REGLAS:* ${partida.reglas}\n` +
-    `𝗘𝗦𝗖𝗨𝗔𝗗𝗥𝗔\n${escuadra}\n𝗦𝗨𝗣𝗟𝗘𝗡𝗧𝗘𝗦\n${suplentes}`.trim()
+    `𝗘𝗦𝗖𝗨𝗔𝗗𝗥𝗔\n${escuadra}\n𝗦𝗨𝗣𝗟𝗘𝗡𝗧𝗘𝗦\n${suplentes}`
   );
 }
 
-handler.help = ["4vs4 <Reg|Hr|Bnd|Mod>"];
+handler.help = ["4vs4", "anotar", "eliminarpartida", "listapartidas"];
 handler.tags = ["main"];
-handler.command = /^(4vs4|anotar|desanotar)$/i;
+handler.command = /^(4vs4|anotar|eliminarpartida|listapartidas)$/i;
 handler.group = true;
 
 export default handler;
