@@ -14,8 +14,8 @@ import { es } from "./lib/total-idiomas.js";
 global.botnumber = "";
 global.confirmCode = "";
 global.owner = [
-  ['5491166887146', '>\`\` sebas-MD', true],
-  ['5491166887146', '>\`\` sebas-MD', true],
+  ['541166887146', '>\`\` sebas-MD', true],
+  ['541166887146', '>\`\` sebas-MD', true],
 ];
 global.colabs = [''];
 global.mods = [''];
